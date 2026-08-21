@@ -60,7 +60,11 @@
     .room-input:focus { border-color: #aeb9e9; box-shadow: 0 0 0 3px rgba(95,118,214,.12); }
     .room-name { width: min(130px, 100%); height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; outline: none; color: var(--ink); background: #fff; font-size: 12px; }
     .room-name:focus { border-color: #aeb9e9; box-shadow: 0 0 0 3px rgba(95,118,214,.12); }
-    .room-role { height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; color: var(--ink); background: #fff; cursor: pointer; font-size: 12px; }
+    .role-choices { display: inline-flex; align-items: center; gap: 4px; height: 38px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: #fff; white-space: nowrap; }
+    .role-label { padding: 0 4px 0 6px; color: var(--muted); font-size: 11px; }
+    .role-choice { height: 30px; padding: 0 8px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; font-size: 11px; }
+    .role-choice.active { color: var(--ink); background: #eef1fb; box-shadow: inset 0 0 0 1px rgba(95,118,214,.16); }
+    .role-choice:disabled { opacity: .42; cursor: not-allowed; }
     .room-button { height: 38px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; color: var(--ink); background: #fff; cursor: pointer; font-size: 12px; font-weight: 650; white-space: nowrap; }
     .room-button.primary { border-color: var(--accent); color: #fff; background: var(--accent); }
     .room-button:disabled { opacity: .45; cursor: not-allowed; }
@@ -137,7 +141,8 @@
       .room-controls { display: grid; grid-template-columns: 1fr 1fr; }
       .room-input { width: 100%; grid-column: 1 / -1; }
       .room-name { width: 100%; }
-      .room-role { width: 100%; }
+      .role-choices { width: 100%; justify-content: space-between; }
+      .role-choice { flex: 1; }
       .room-button { width: 100%; }
       .brand-mark { width: 36px; height: 36px; border-radius: 11px; }
       .brand-mark::before { width: 15px; height: 15px; box-shadow: 7px 7px 0 var(--accent); }
@@ -173,14 +178,14 @@
       <div class="room-controls">
         <input class="room-input" id="roomInput" maxlength="6" placeholder="输入 6 位房间号" aria-label="房间号" autocomplete="off" />
         <input class="room-name" id="displayNameInput" maxlength="16" placeholder="你的名字" aria-label="你的名字" autocomplete="nickname" />
-        <select class="room-role" id="roleSelect" aria-label="进入身份">
-          <option value="spectator" selected>进入后观战</option>
-          <option value="black">申请黑棋</option>
-          <option value="white">申请白棋</option>
-        </select>
+        <div class="role-choices" role="group" aria-label="位置选择">
+          <span class="role-label">位置</span>
+          <button class="role-choice" type="button" data-role="black">黑子</button>
+          <button class="role-choice" type="button" data-role="white">白子</button>
+          <button class="role-choice active" type="button" data-role="spectator">观战</button>
+        </div>
         <button class="room-button primary" id="createRoomBtn" type="button">创建房间</button>
         <button class="room-button" id="joinRoomBtn" type="button">加入房间</button>
-        <button class="room-button" id="claimRoleBtn" type="button">选择席位</button>
         <button class="room-button" id="saveNameBtn" type="button">保存名字</button>
       </div>
       <div class="room-state" id="roomState" aria-live="polite">尚未连接</div>
@@ -240,13 +245,12 @@
       const toast = document.getElementById('toast');
       const roomInput = document.getElementById('roomInput');
       const displayNameInput = document.getElementById('displayNameInput');
-      const roleSelect = document.getElementById('roleSelect');
+      const roleButtons = Array.from(document.querySelectorAll('.role-choice'));
       const roomState = document.getElementById('roomState');
       const rosterState = document.getElementById('rosterState');
       const availabilityStatus = document.getElementById('availabilityStatus');
       const createRoomBtn = document.getElementById('createRoomBtn');
       const joinRoomBtn = document.getElementById('joinRoomBtn');
-      const claimRoleBtn = document.getElementById('claimRoleBtn');
       const saveNameBtn = document.getElementById('saveNameBtn');
       const SUPABASE_URL = 'https://jiiybbowqzfihlgkphsw.supabase.co';
       const SUPABASE_ANON_KEY = 'sb_publishable_RCshm3GY_QlM00fD2CLnEw_tu8Czuze';
@@ -292,6 +296,14 @@
 
       function normalizedName(value) {
         return (value || '').trim().replace(/\s+/g, ' ').slice(0, 16) || '匿名棋手';
+      }
+
+      function updateRoleButtons() {
+        const locked = realtime.connected && moves.length > 0;
+        roleButtons.forEach(button => {
+          button.classList.toggle('active', button.dataset.role === realtime.role);
+          button.disabled = !realtime.connected || locked;
+        });
       }
 
       async function syncDisplayName() {
@@ -377,8 +389,9 @@
           return;
         }
         realtime.roomCode = code;
-        realtime.role = role;
-        realtime.myPlayer = roleMeta[role].player;
+        const assignedRole = joinResult.data.role || 'spectator';
+        realtime.role = assignedRole;
+        realtime.myPlayer = roleMeta[assignedRole].player;
         realtime.connected = false;
         roomInput.value = code;
         renderRoster(joinResult.data.members || []);
@@ -400,8 +413,9 @@
         await realtime.channel.subscribe(async status => {
           if (status === 'SUBSCRIBED') {
             realtime.connected = true;
+            updateRoleButtons();
             availabilityStatus.innerHTML = '<span class="offline-dot" aria-hidden="true"></span>联机已连接';
-            setRoomState(code, `${roleMeta[role].label} · 等待同步`);
+            setRoomState(code, `${roleMeta[assignedRole].label} · 等待同步`);
             sendRoomMessage({ type: 'roster', members: joinResult.data.members || [] });
             sendRoomMessage({ type: 'state-request' });
             realtime.heartbeat = setInterval(async () => {
@@ -420,14 +434,13 @@
 
       async function claimRole(role) {
         if (!realtime.connected || !realtime.roomCode) {
-          roleSelect.value = 'spectator';
           showToast('请先进入房间');
           return;
         }
+        if (moves.length > 0) { showToast('对局已经开始，位置不能再改'); return; }
         if (!roleMeta[role]) role = 'spectator';
         const result = await realtime.client.rpc('join_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId, p_role: role });
         if (result.error || !result.data?.ok) {
-          roleSelect.value = realtime.role;
           const reason = result.data?.reason === 'seat_taken' ? `${roleMeta[role].label}席位已有人` : '选择席位失败，请重试';
           showToast(reason);
           renderRoster(result.data?.members || []);
@@ -435,8 +448,8 @@
         }
         realtime.role = role;
         realtime.myPlayer = roleMeta[role].player;
-        roleSelect.value = role;
         renderRoster(result.data.members || []);
+        updateRoleButtons();
         sendRoomMessage({ type: 'roster', members: result.data.members || [] });
         updateHistory();
         setRoomState(realtime.roomCode, `${roleMeta[role].label} · 已选择`);
@@ -616,6 +629,7 @@
         const count = moves.length;
         moveCount.textContent = `${count} 手`;
         undoBtn.disabled = count === 0 || gameOver || (realtime.connected && realtime.myPlayer === 0);
+        updateRoleButtons();
         if (!count) { moveList.innerHTML = '<div class="empty-history">还没有落子记录。<br>和身边的人来一局吧。</div>'; return; }
         moveList.innerHTML = moves.slice().reverse().map((move, index) => `<div class="move-row"><span class="move-index">${count - index}</span><span class="move-player"><span class="mini-stone ${players[move.player].stone}"></span>${players[move.player].name}</span><span>${coord(move.x, move.y)}</span></div>`).join('');
       }
@@ -643,15 +657,14 @@
       roomInput.addEventListener('input', () => { roomInput.value = roomInput.value.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase(); });
       displayNameInput.value = displayName;
       displayNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') saveDisplayName(); });
-      createRoomBtn.addEventListener('click', async () => { const code = randomRoomCode(); roomInput.value = code; restart(); roleSelect.value = 'spectator'; await openRoom(code); });
+      createRoomBtn.addEventListener('click', async () => { const code = randomRoomCode(); roomInput.value = code; restart(); await openRoom(code); });
       joinRoomBtn.addEventListener('click', async () => {
         const code = roomCode();
         if (code.length !== 6) { showToast('请输入 6 位房间号'); return; }
         restart();
-        roleSelect.value = 'spectator';
         await openRoom(code);
       });
-      claimRoleBtn.addEventListener('click', async () => { await claimRole(roleSelect.value); });
+      roleButtons.forEach(button => button.addEventListener('click', async () => { await claimRole(button.dataset.role); }));
       saveNameBtn.addEventListener('click', async () => { await saveDisplayName(); });
       window.addEventListener('pagehide', () => {
         if (realtime.client && realtime.roomCode) realtime.client.rpc('leave_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId });
