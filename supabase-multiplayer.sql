@@ -9,6 +9,9 @@ create table if not exists public.gomoku_members (
   primary key (room_code, session_id)
 );
 
+alter table public.gomoku_members
+  add column if not exists display_name text not null default '匿名棋手';
+
 create index if not exists gomoku_members_room_seen_idx
   on public.gomoku_members (room_code, last_seen desc);
 
@@ -28,7 +31,7 @@ set search_path = public
 as $$
   select coalesce(
     jsonb_agg(
-      jsonb_build_object('session_id', session_id, 'role', role, 'last_seen', last_seen)
+      jsonb_build_object('session_id', session_id, 'role', role, 'display_name', display_name, 'last_seen', last_seen)
       order by role, session_id
     ),
     '[]'::jsonb
@@ -101,6 +104,30 @@ exception
 end;
 $$;
 
+create or replace function public.set_gomoku_display_name(
+  p_room_code text,
+  p_session_id text,
+  p_display_name text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_name text := left(trim(coalesce(p_display_name, '')), 16);
+begin
+  if v_name = '' then v_name := '匿名棋手'; end if;
+  update public.gomoku_members
+  set display_name = v_name, last_seen = now()
+  where room_code = upper(trim(p_room_code)) and session_id = p_session_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_in_room');
+  end if;
+  return jsonb_build_object('ok', true, 'display_name', v_name, 'members', public.gomoku_room_members(p_room_code));
+end;
+$$;
+
 create or replace function public.heartbeat_gomoku_room(p_room_code text, p_session_id text)
 returns jsonb
 language plpgsql
@@ -131,5 +158,6 @@ $$;
 grant execute on function public.gomoku_room_members(text) to anon, authenticated;
 grant execute on function public.get_gomoku_room_members(text) to anon, authenticated;
 grant execute on function public.join_gomoku_room(text, text, text) to anon, authenticated;
+grant execute on function public.set_gomoku_display_name(text, text, text) to anon, authenticated;
 grant execute on function public.heartbeat_gomoku_room(text, text) to anon, authenticated;
 grant execute on function public.leave_gomoku_room(text, text) to anon, authenticated;
