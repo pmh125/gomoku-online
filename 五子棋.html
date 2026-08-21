@@ -333,6 +333,7 @@
       const switchModeKey = 'gomoku-switch-mode';
       let displayName = '匿名棋手';
       let chatMessages = [];
+      let roomMembers = [];
       let settingsUnlocked = false;
       let switchEnabled = false;
       try { displayName = localStorage.getItem(nicknameKey) || displayName; } catch (error) { /* localStorage may be unavailable */ }
@@ -385,6 +386,7 @@
       }
 
       function renderRoster(members = []) {
+        roomMembers = members.slice();
         const counts = { black: 0, white: 0, spectator: 0 };
         members.forEach(member => { if (counts[member.role] !== undefined) counts[member.role] += 1; });
         rosterState.textContent = `黑棋 ${counts.black}/1 · 白棋 ${counts.white}/1 · 观战 ${counts.spectator}`;
@@ -433,11 +435,13 @@
       }
 
       function updateRoleButtons() {
-        const locked = realtime.connected && moves.length > 0;
         undoBtn.disabled = moves.length === 0 || gameOver || (realtime.connected && realtime.myPlayer === 0);
         roleButtons.forEach(button => {
+          const requestedRole = button.dataset.role;
+          const currentPlayerCannotSwitch = moves.length > 0 && realtime.myPlayer !== 0 && requestedRole !== realtime.role;
           button.classList.toggle('active', button.dataset.role === realtime.role);
-          button.disabled = !realtime.connected || locked;
+          // 成员列表是广播缓存，可能比数据库慢；座位是否已被占用交给 RPC 原子校验。
+          button.disabled = !realtime.connected || currentPlayerCannotSwitch;
         });
       }
 
@@ -584,9 +588,15 @@
           showToast('请先进入房间');
           return;
         }
-        if (moves.length > 0) { showToast('对局已经开始，位置不能再改'); return; }
+        if (moves.length > 0 && realtime.myPlayer !== 0) { showToast('对局已经开始，当前玩家不能换边'); return; }
         if (!roleMeta[role]) role = 'spectator';
-        const result = await realtime.client.rpc('join_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId, p_role: role });
+        const joinRole = () => realtime.client.rpc('join_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId, p_role: role });
+        let result = await joinRole();
+        // 离场事务可能还在提交，观战者申请空出的棋位时自动补试一次。
+        if ((!result.data?.ok) && result.data?.reason === 'seat_taken' && realtime.myPlayer === 0) {
+          await new Promise(resolve => setTimeout(resolve, 400));
+          result = await joinRole();
+        }
         if (result.error || !result.data?.ok) {
           const reason = result.data?.reason === 'seat_taken' ? `${roleMeta[role].label}席位已有人` : '选择席位失败，请重试';
           showToast(reason);
