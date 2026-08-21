@@ -118,7 +118,36 @@
     .mini-stone.black { background: var(--black-stone); }
     .mini-stone.white { background: var(--white-stone); }
     .empty-history { padding: 23px 2px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .room-info-panel { margin-bottom: 18px; }
+    .member-list { max-height: 112px; overflow: auto; border-top: 1px solid var(--border); scrollbar-width: thin; }
+    .member-row { display: flex; align-items: center; gap: 8px; padding: 8px 2px; border-bottom: 1px solid #f0f2f6; color: #4e576a; font-size: 12px; }
+    .member-row:last-child { border-bottom: 0; }
+    .member-dot { width: 8px; height: 8px; border-radius: 50%; background: #aeb5c2; }
+    .member-role { margin-left: auto; color: var(--muted); font-size: 11px; }
+    .chat-panel { min-height: 0; display: flex; flex: 1; flex-direction: column; }
+    .chat-list { min-height: 90px; max-height: 190px; overflow: auto; border-top: 1px solid var(--border); scrollbar-width: thin; }
+    .chat-message { padding: 8px 2px; border-bottom: 1px solid #f0f2f6; color: #4e576a; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+    .chat-message strong { color: var(--ink); font-weight: 650; }
+    .chat-message.self strong { color: var(--accent-dark); }
+    .empty-chat { padding: 16px 2px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .chat-form { display: flex; gap: 7px; margin-top: 9px; }
+    .chat-input, .alternate-url, .switch-mode { min-width: 0; height: 34px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; outline: none; color: var(--ink); background: #fff; font-size: 12px; }
+    .chat-input { flex: 1; }
+    .chat-input:focus, .alternate-url:focus, .switch-mode:focus { border-color: #aeb9e9; box-shadow: 0 0 0 3px rgba(95,118,214,.12); }
+    .chat-send { height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; color: var(--ink); background: #fff; cursor: pointer; font-size: 11px; font-weight: 650; white-space: nowrap; }
+    .chat-send:disabled { opacity: .45; cursor: not-allowed; }
+    .switch-settings { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--border); }
+    .switch-row { display: flex; gap: 7px; margin-top: 8px; }
+    .alternate-url { flex: 1; }
+    .switch-mode-label { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }
+    .switch-mode { width: 100%; margin-top: 6px; }
     .footer-note { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; line-height: 1.65; }
+
+    .alternate-panel { position: fixed; inset: 0; z-index: 30; display: flex; align-items: stretch; justify-content: stretch; visibility: hidden; opacity: 0; pointer-events: none; background: #fff; transition: opacity .12s ease, visibility .12s ease; }
+    .alternate-panel iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+    .alternate-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: #f8f9fd; font-size: 14px; }
+    .alternate-panel.has-frame .alternate-empty { display: none; }
+    .page.alternate-mode .alternate-panel { visibility: visible; opacity: 1; }
 
     .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none; padding: 11px 16px; border-radius: 999px; color: #fff; background: rgba(29, 36, 51, .92); box-shadow: 0 9px 24px rgba(29, 36, 51, .24); font-size: 13px; transition: opacity .22s ease, transform .22s ease; }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -217,15 +246,38 @@
           <button class="action primary" id="restartBtn" type="button">重新开始</button>
           <button class="action" id="undoBtn" type="button" disabled>悔棋</button>
         </div>
-        <div class="history">
-          <div class="history-head"><div class="section-label" style="margin:0">落子记录</div><div class="count" id="moveCount">0 手</div></div>
-          <div class="move-list" id="moveList"><div class="empty-history">还没有落子记录。<br>和身边的人来一局吧。</div></div>
+        <div class="room-info-panel">
+          <div class="section-label" style="margin:0">房间成员</div>
+          <div class="member-list" id="memberList"><div class="empty-chat">进入房间后显示成员昵称</div></div>
         </div>
-        <div class="footer-note">未加入房间时可以本地双人对弈；加入房间后，落子会实时同步给同一房间的另一位玩家。</div>
+        <div class="chat-panel" id="chatPanel">
+          <div class="history-head"><div class="section-label" style="margin:0">房间聊天</div><div class="count" id="chatCount">0 条</div></div>
+          <div class="chat-list" id="chatList"><div class="empty-chat">进入房间后可以聊天</div></div>
+          <form class="chat-form" id="chatForm">
+            <input class="chat-input" id="chatInput" maxlength="240" placeholder="说点什么…" autocomplete="off" />
+            <button class="chat-send" type="submit">发送</button>
+          </form>
+        </div>
+        <div class="switch-settings">
+          <div class="section-label" style="margin:0">个人备用网址</div>
+          <div class="switch-row"><input class="alternate-url" id="alternateUrlInput" placeholder="https://example.com" inputmode="url" /><button class="chat-send" id="saveAlternateBtn" type="button">保存</button></div>
+          <label class="switch-mode-label" for="switchModeSelect">鼠标移出以下区域时切换</label>
+          <select class="switch-mode" id="switchModeSelect">
+            <option value="board">棋盘区域</option>
+            <option value="chat">聊天区域</option>
+            <option value="board-chat">棋盘或聊天区域</option>
+            <option value="none">不自动切换</option>
+          </select>
+        </div>
+        <div class="footer-note">备用网址和切换设置只保存在当前浏览器；外部网站若禁止 iframe 嵌入，将显示备用提示。</div>
       </aside>
     </section>
   </main>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="alternate-panel" id="alternatePanel" aria-hidden="true">
+    <iframe id="alternateFrame" title="个人备用网址" loading="eager"></iframe>
+    <div class="alternate-empty" id="alternateEmpty">请在右侧设置你的备用网址</div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
@@ -238,8 +290,6 @@
       const turnStone = document.getElementById('turnStone');
       const statusMain = document.getElementById('statusMain');
       const statusDetail = document.getElementById('statusDetail');
-      const moveCount = document.getElementById('moveCount');
-      const moveList = document.getElementById('moveList');
       const undoBtn = document.getElementById('undoBtn');
       const lastMoveLabel = document.getElementById('lastMoveLabel');
       const toast = document.getElementById('toast');
@@ -248,6 +298,19 @@
       const roleButtons = Array.from(document.querySelectorAll('.role-choice'));
       const roomState = document.getElementById('roomState');
       const rosterState = document.getElementById('rosterState');
+      const memberList = document.getElementById('memberList');
+      const chatPanel = document.getElementById('chatPanel');
+      const chatList = document.getElementById('chatList');
+      const chatCount = document.getElementById('chatCount');
+      const chatForm = document.getElementById('chatForm');
+      const chatInput = document.getElementById('chatInput');
+      const chatSendBtn = chatForm.querySelector('.chat-send');
+      const alternateUrlInput = document.getElementById('alternateUrlInput');
+      const saveAlternateBtn = document.getElementById('saveAlternateBtn');
+      const switchModeSelect = document.getElementById('switchModeSelect');
+      const alternatePanel = document.getElementById('alternatePanel');
+      const alternateFrame = document.getElementById('alternateFrame');
+      const alternateEmpty = document.getElementById('alternateEmpty');
       const availabilityStatus = document.getElementById('availabilityStatus');
       const createRoomBtn = document.getElementById('createRoomBtn');
       const joinRoomBtn = document.getElementById('joinRoomBtn');
@@ -259,7 +322,10 @@
       const realtime = { client: null, channel: null, roomCode: '', role: 'spectator', myPlayer: 0, connected: false, heartbeat: null };
       const roleMeta = { black: { player: 1, label: '黑棋' }, white: { player: 2, label: '白棋' }, spectator: { player: 0, label: '观战' } };
       const nicknameKey = 'gomoku-online-nickname';
+      const alternateUrlKey = 'gomoku-alternate-url';
+      const switchModeKey = 'gomoku-switch-mode';
       let displayName = '匿名棋手';
+      let chatMessages = [];
       try { displayName = localStorage.getItem(nicknameKey) || displayName; } catch (error) { /* localStorage may be unavailable */ }
       let board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
       let moves = [];
@@ -287,23 +353,88 @@
         return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
       }
 
+      function renderMemberList(members = []) {
+        memberList.textContent = '';
+        if (!members.length) {
+          memberList.innerHTML = '<div class="empty-chat">进入房间后显示成员昵称</div>';
+          return;
+        }
+        members.forEach(member => {
+          const row = document.createElement('div');
+          row.className = 'member-row';
+          const stone = document.createElement('span');
+          if (member.role === 'black' || member.role === 'white') stone.className = `mini-stone ${member.role}`;
+          else stone.className = 'member-dot';
+          const name = document.createElement('span');
+          name.textContent = member.display_name || '匿名棋手';
+          const role = document.createElement('span');
+          role.className = 'member-role';
+          role.textContent = roleMeta[member.role]?.label || '成员';
+          row.append(stone, name, role);
+          memberList.appendChild(row);
+        });
+      }
+
       function renderRoster(members = []) {
         const counts = { black: 0, white: 0, spectator: 0 };
         members.forEach(member => { if (counts[member.role] !== undefined) counts[member.role] += 1; });
         rosterState.textContent = `黑棋 ${counts.black}/1 · 白棋 ${counts.white}/1 · 观战 ${counts.spectator}`;
         rosterState.title = members.length ? members.map(member => `${roleMeta[member.role]?.label || '成员'}：${member.display_name || '匿名棋手'}`).join('\n') : '房间里还没有成员';
+        renderMemberList(members);
       }
 
       function normalizedName(value) {
         return (value || '').trim().replace(/\s+/g, ' ').slice(0, 16) || '匿名棋手';
       }
 
+      function renderChat() {
+        chatCount.textContent = `${chatMessages.length} 条`;
+        chatList.textContent = '';
+        if (!chatMessages.length) {
+          chatList.innerHTML = '<div class="empty-chat">进入房间后可以聊天</div>';
+          return;
+        }
+        chatMessages.forEach(message => {
+          const row = document.createElement('div');
+          row.className = `chat-message${message.self ? ' self' : ''}`;
+          const name = document.createElement('strong');
+          name.textContent = message.name || '匿名棋手';
+          const text = document.createElement('span');
+          text.textContent = `：${message.text}`;
+          row.append(name, text);
+          chatList.appendChild(row);
+        });
+        chatList.scrollTop = chatList.scrollHeight;
+      }
+
+      function appendChatMessage(message, self = false) {
+        chatMessages.push({ name: message.name || '匿名棋手', text: message.text || '', self });
+        chatMessages = chatMessages.slice(-80);
+        renderChat();
+      }
+
+      function sendChatMessage() {
+        const text = chatInput.value.trim().slice(0, 240);
+        if (!text) return;
+        if (!realtime.connected || !realtime.roomCode) { showToast('请先进入房间'); return; }
+        const message = { name: displayName, text };
+        appendChatMessage(message, true);
+        sendRoomMessage({ type: 'chat', message });
+        chatInput.value = '';
+      }
+
       function updateRoleButtons() {
         const locked = realtime.connected && moves.length > 0;
+        undoBtn.disabled = moves.length === 0 || gameOver || (realtime.connected && realtime.myPlayer === 0);
         roleButtons.forEach(button => {
           button.classList.toggle('active', button.dataset.role === realtime.role);
           button.disabled = !realtime.connected || locked;
         });
+      }
+
+      function updateChatControls() {
+        chatInput.disabled = !realtime.connected;
+        chatSendBtn.disabled = !realtime.connected;
       }
 
       async function syncDisplayName() {
@@ -342,6 +473,9 @@
         realtime.myPlayer = 0;
         realtime.connected = false;
         renderRoster([]);
+        chatMessages = [];
+        renderChat();
+        updateChatControls();
       }
 
       function getState() {
@@ -367,7 +501,7 @@
         } else {
           updateTurn();
         }
-        updateHistory();
+        updateRoleButtons();
         lastMoveLabel.textContent = state.lastMove ? `最后落子：${coord(state.lastMove.x, state.lastMove.y)}` : '等待第一步落子';
         draw();
       }
@@ -409,11 +543,13 @@
           }
           if (payload.type === 'roster') renderRoster(payload.members || []);
           if (payload.type === 'roster-request') refreshRoster();
+          if (payload.type === 'chat' && payload.message) appendChatMessage(payload.message);
         });
         await realtime.channel.subscribe(async status => {
           if (status === 'SUBSCRIBED') {
             realtime.connected = true;
             updateRoleButtons();
+            updateChatControls();
             availabilityStatus.innerHTML = '<span class="offline-dot" aria-hidden="true"></span>联机已连接';
             setRoomState(code, `${roleMeta[assignedRole].label} · 等待同步`);
             sendRoomMessage({ type: 'roster', members: joinResult.data.members || [] });
@@ -426,6 +562,8 @@
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             realtime.connected = false;
             stopHeartbeat();
+            updateRoleButtons();
+            updateChatControls();
             setRoomState(code, '连接失败');
             showToast('房间连接失败，请重试');
           }
@@ -451,7 +589,7 @@
         renderRoster(result.data.members || []);
         updateRoleButtons();
         sendRoomMessage({ type: 'roster', members: result.data.members || [] });
-        updateHistory();
+        updateRoleButtons();
         setRoomState(realtime.roomCode, `${roleMeta[role].label} · 已选择`);
         showToast(role === 'spectator' ? '已切换为观战' : `已选择${roleMeta[role].label}`);
       }
@@ -468,6 +606,60 @@
         } else {
           showToast('名字更新失败，请检查 Supabase SQL');
         }
+      }
+
+      function validAlternateUrl(value) {
+        try {
+          const url = new URL((value || '').trim());
+          return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function loadAlternateSettings() {
+        let url = '', mode = 'none';
+        try {
+          url = localStorage.getItem(alternateUrlKey) || '';
+          mode = localStorage.getItem(switchModeKey) || 'none';
+        } catch (error) { /* localStorage may be unavailable */ }
+        alternateUrlInput.value = url;
+        switchModeSelect.value = ['board', 'chat', 'board-chat', 'none'].includes(mode) ? mode : 'none';
+        if (validAlternateUrl(url)) {
+          alternateFrame.src = validAlternateUrl(url);
+          alternatePanel.classList.add('has-frame');
+        }
+      }
+
+      function saveAlternateSettings() {
+        const raw = alternateUrlInput.value.trim();
+        const url = validAlternateUrl(raw);
+        if (raw && !url) { showToast('请输入 http 或 https 网址'); return; }
+        try { localStorage.setItem(alternateUrlKey, url); } catch (error) { /* localStorage may be unavailable */ }
+        if (url) {
+          alternateFrame.src = url;
+          alternatePanel.classList.add('has-frame');
+        } else {
+          alternateFrame.removeAttribute('src');
+          alternatePanel.classList.remove('has-frame');
+        }
+        showToast(url ? '备用网址已保存' : '已清除备用网址');
+        updatePointerMode();
+      }
+
+      function updatePointerMode() {
+        const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        if (!canHover || switchModeSelect.value === 'none') {
+          document.querySelector('.page').classList.remove('alternate-mode');
+          alternatePanel.setAttribute('aria-hidden', 'true');
+          return;
+        }
+        const boardHover = boardWrap.matches(':hover');
+        const chatHover = chatPanel.matches(':hover');
+        const mode = switchModeSelect.value;
+        const inTrigger = mode === 'board' ? boardHover : mode === 'chat' ? chatHover : boardHover || chatHover;
+        document.querySelector('.page').classList.toggle('alternate-mode', !inTrigger);
+        alternatePanel.setAttribute('aria-hidden', String(inTrigger));
       }
 
       function broadcastState() {
@@ -599,7 +791,7 @@
           updateTurn();
           lastMoveLabel.textContent = `最后落子：${coord(cell.x, cell.y)}`;
         }
-        updateHistory(); draw(); broadcastState();
+        updateRoleButtons(); draw(); broadcastState();
       }
 
       function findWinningLine(x, y, player) {
@@ -625,25 +817,16 @@
 
       function updateStatus(main, detail) { statusMain.textContent = main; statusDetail.textContent = detail; }
 
-      function updateHistory() {
-        const count = moves.length;
-        moveCount.textContent = `${count} 手`;
-        undoBtn.disabled = count === 0 || gameOver || (realtime.connected && realtime.myPlayer === 0);
-        updateRoleButtons();
-        if (!count) { moveList.innerHTML = '<div class="empty-history">还没有落子记录。<br>和身边的人来一局吧。</div>'; return; }
-        moveList.innerHTML = moves.slice().reverse().map((move, index) => `<div class="move-row"><span class="move-index">${count - index}</span><span class="move-player"><span class="mini-stone ${players[move.player].stone}"></span>${players[move.player].name}</span><span>${coord(move.x, move.y)}</span></div>`).join('');
-      }
-
       function restart() {
         if (realtime.connected && realtime.myPlayer === 0) { showToast('观战中，不能重新开始'); return; }
         board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0)); moves = []; currentPlayer = 1; gameOver = false; winningLine = []; hoverCell = null;
-        updateTurn(); updateHistory(); lastMoveLabel.textContent = '等待第一步落子'; draw(); broadcastState(); showToast('新对局开始');
+        updateTurn(); updateRoleButtons(); lastMoveLabel.textContent = '等待第一步落子'; draw(); broadcastState(); showToast('新对局开始');
       }
 
       function undo() {
         if (realtime.connected && realtime.myPlayer === 0) { showToast('观战中，不能悔棋'); return; }
         if (!moves.length || gameOver) return;
-        const move = moves.pop(); board[move.y][move.x] = 0; currentPlayer = move.player; hoverCell = null; updateTurn(); updateHistory();
+        const move = moves.pop(); board[move.y][move.x] = 0; currentPlayer = move.player; hoverCell = null; updateTurn(); updateRoleButtons();
         lastMoveLabel.textContent = moves.length ? `最后落子：${coord(moves[moves.length - 1].x, moves[moves.length - 1].y)}` : '等待第一步落子'; draw(); broadcastState(); showToast('已悔棋');
       }
 
@@ -666,6 +849,16 @@
       });
       roleButtons.forEach(button => button.addEventListener('click', async () => { await claimRole(button.dataset.role); }));
       saveNameBtn.addEventListener('click', async () => { await saveDisplayName(); });
+      chatForm.addEventListener('submit', event => { event.preventDefault(); sendChatMessage(); });
+      saveAlternateBtn.addEventListener('click', saveAlternateSettings);
+      alternateUrlInput.addEventListener('keydown', event => { if (event.key === 'Enter') saveAlternateSettings(); });
+      switchModeSelect.addEventListener('change', () => {
+        try { localStorage.setItem(switchModeKey, switchModeSelect.value); } catch (error) { /* localStorage may be unavailable */ }
+        updatePointerMode();
+      });
+      document.addEventListener('mousemove', updatePointerMode);
+      document.addEventListener('mouseleave', updatePointerMode);
+      window.addEventListener('blur', updatePointerMode);
       window.addEventListener('pagehide', () => {
         if (realtime.client && realtime.roomCode) realtime.client.rpc('leave_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId });
       });
@@ -677,7 +870,10 @@
       } else {
         setRoomState('未配置', '本地模式');
       }
-      fitCanvas(); updateHistory();
+      loadAlternateSettings();
+      renderChat();
+      updateChatControls();
+      fitCanvas(); updateRoleButtons(); updatePointerMode();
     })();
   </script>
 </body>
