@@ -68,6 +68,7 @@ as $$
 declare
   v_code text := upper(trim(p_room_code));
   v_role text := lower(trim(p_role));
+  v_existing_role text;
   v_members jsonb;
 begin
   if v_code !~ '^[A-Z0-9]{6}$' then
@@ -83,6 +84,20 @@ begin
   delete from public.gomoku_members
   where room_code = v_code
     and last_seen < now() - interval '45 seconds';
+
+  select role into v_existing_role
+  from public.gomoku_members
+  where room_code = v_code and session_id = p_session_id;
+
+  -- A new visitor who enters as spectator receives the first available seat.
+  -- Existing members can still explicitly switch to spectator before the first move.
+  if v_role = 'spectator' and v_existing_role is null then
+    if not exists (select 1 from public.gomoku_members where room_code = v_code and role = 'black') then
+      v_role := 'black';
+    elsif not exists (select 1 from public.gomoku_members where room_code = v_code and role = 'white') then
+      v_role := 'white';
+    end if;
+  end if;
 
   if v_role in ('black', 'white') and exists (
     select 1 from public.gomoku_members
