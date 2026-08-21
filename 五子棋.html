@@ -19,8 +19,8 @@
       --wood: #b7a083;
       --wood-dark: #947d64;
       --grid: #5d5043;
-      --white-stone: #f7f1e6;
-      --black-stone: #171b24;
+      --white-stone: #d4d5cf;
+      --black-stone: #3d424b;
       --shadow: 0 24px 70px rgba(54, 71, 110, 0.12), 0 3px 10px rgba(54, 71, 110, 0.05);
       --radius-lg: 24px;
       --radius-md: 16px;
@@ -71,7 +71,7 @@
     .eyebrow { color: var(--muted); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
     h1 { margin: 7px 0 0; font-size: clamp(27px, 4vw, 38px); line-height: 1.1; letter-spacing: -.04em; }
     .turn-card { display: flex; align-items: center; gap: 10px; padding: 10px 13px; border-radius: 13px; background: var(--accent-soft); color: var(--accent-dark); font-size: 13px; white-space: nowrap; }
-    .turn-stone { width: 15px; height: 15px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); box-shadow: inset -2px -2px 4px rgba(0,0,0,.14), inset 1px 1px 2px rgba(255,255,255,.55); }
+    .turn-stone { width: 15px; height: 15px; border-radius: 50%; border: 1px solid rgba(0,0,0,.1); opacity: .86; box-shadow: inset -1px -1px 3px rgba(0,0,0,.1), inset 1px 1px 2px rgba(255,255,255,.3); }
     .turn-stone.black { background: var(--black-stone); }
     .turn-stone.white { background: var(--white-stone); }
     .board-wrap { width: min(100%, 650px); margin: 0 auto; aspect-ratio: 1; position: relative; }
@@ -99,7 +99,7 @@
     .move-row:last-child { border-bottom: 0; }
     .move-index { color: var(--muted); font-variant-numeric: tabular-nums; width: 30px; }
     .move-player { display: inline-flex; align-items: center; gap: 8px; flex: 1; }
-    .mini-stone { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); box-shadow: inset -1px -1px 3px rgba(0,0,0,.15), inset 1px 1px 2px rgba(255,255,255,.55); }
+    .mini-stone { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(0,0,0,.1); opacity: .86; box-shadow: inset -1px -1px 3px rgba(0,0,0,.1), inset 1px 1px 2px rgba(255,255,255,.3); }
     .mini-stone.black { background: var(--black-stone); }
     .mini-stone.white { background: var(--white-stone); }
     .empty-history { padding: 23px 2px; color: var(--muted); font-size: 12px; line-height: 1.6; }
@@ -370,23 +370,24 @@
       function drawHover(x, y) {
         const px = padding + x * cellSize, py = padding + y * cellSize;
         ctx.save();
-        ctx.globalAlpha = .3;
+        ctx.globalAlpha = .2;
         ctx.fillStyle = currentPlayer === 1 ? '#171b24' : '#f7f1e6';
         ctx.strokeStyle = currentPlayer === 1 ? '#171b24' : '#fff';
         ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(px, py, cellSize * .39, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+        ctx.beginPath(); ctx.arc(px, py, cellSize * .32, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
       }
 
       function drawStone(x, y, player) {
-        const px = padding + x * cellSize, py = padding + y * cellSize, r = cellSize * .425;
+        const px = padding + x * cellSize, py = padding + y * cellSize, r = cellSize * .34;
         const gradient = ctx.createRadialGradient(px - r * .32, py - r * .38, r * .12, px, py, r);
-        if (player === 1) { gradient.addColorStop(0, '#4b5361'); gradient.addColorStop(.35, '#242a35'); gradient.addColorStop(1, '#0f1218'); }
-        else { gradient.addColorStop(0, '#fffdf8'); gradient.addColorStop(.55, '#f3eee4'); gradient.addColorStop(1, '#d9d1c2'); }
+        if (player === 1) { gradient.addColorStop(0, '#59606a'); gradient.addColorStop(.35, '#454b55'); gradient.addColorStop(1, '#303640'); }
+        else { gradient.addColorStop(0, '#e3e3dd'); gradient.addColorStop(.55, '#d4d5cf'); gradient.addColorStop(1, '#bfc1bb'); }
         ctx.save();
-        ctx.shadowColor = 'rgba(57, 35, 20, .3)'; ctx.shadowBlur = r * .35; ctx.shadowOffsetY = r * .16;
+        ctx.globalAlpha = .9;
+        ctx.shadowColor = 'rgba(57, 35, 20, .12)'; ctx.shadowBlur = r * .18; ctx.shadowOffsetY = r * .08;
         ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
         ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = player === 1 ? 'rgba(255,255,255,.08)' : 'rgba(101,76,46,.18)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.strokeStyle = player === 1 ? 'rgba(255,255,255,.04)' : 'rgba(78,78,72,.16)'; ctx.lineWidth = 1; ctx.stroke();
         ctx.restore();
       }
 
