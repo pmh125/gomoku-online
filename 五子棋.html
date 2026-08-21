@@ -147,6 +147,7 @@
     .alternate-panel iframe { width: 100%; height: 100%; border: 0; background: #fff; }
     .alternate-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: #f8f9fd; font-size: 14px; }
     .alternate-panel.has-frame .alternate-empty { display: none; }
+    .alternate-settings { position: absolute; top: 16px; right: 16px; height: 34px; padding: 0 12px; border: 1px solid rgba(215,220,232,.95); border-radius: 9px; color: var(--ink); background: rgba(255,255,255,.9); box-shadow: 0 5px 16px rgba(30,40,65,.12); cursor: pointer; font-size: 12px; pointer-events: auto; }
     body.alternate-mode .alternate-panel { visibility: visible; opacity: 1; }
 
     .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none; padding: 11px 16px; border-radius: 999px; color: #fff; background: rgba(29, 36, 51, .92); box-shadow: 0 9px 24px rgba(29, 36, 51, .24); font-size: 13px; transition: opacity .22s ease, transform .22s ease; }
@@ -277,6 +278,7 @@
   <div class="alternate-panel" id="alternatePanel" aria-hidden="true">
     <iframe id="alternateFrame" title="个人备用网址" loading="eager"></iframe>
     <div class="alternate-empty" id="alternateEmpty">请在右侧设置你的备用网址</div>
+    <button class="alternate-settings" id="alternateSettingsBtn" type="button">打开房间和设置</button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -311,6 +313,7 @@
       const alternatePanel = document.getElementById('alternatePanel');
       const alternateFrame = document.getElementById('alternateFrame');
       const alternateEmpty = document.getElementById('alternateEmpty');
+      const alternateSettingsBtn = document.getElementById('alternateSettingsBtn');
       const availabilityStatus = document.getElementById('availabilityStatus');
       const createRoomBtn = document.getElementById('createRoomBtn');
       const joinRoomBtn = document.getElementById('joinRoomBtn');
@@ -326,6 +329,7 @@
       const switchModeKey = 'gomoku-switch-mode';
       let displayName = '匿名棋手';
       let chatMessages = [];
+      let settingsUnlocked = false;
       try { displayName = localStorage.getItem(nicknameKey) || displayName; } catch (error) { /* localStorage may be unavailable */ }
       let board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
       let moves = [];
@@ -656,6 +660,12 @@
         }
         const boardHover = boardWrap.matches(':hover');
         const chatHover = chatPanel.matches(':hover');
+        if (settingsUnlocked && !boardHover && !chatHover) {
+          document.body.classList.remove('alternate-mode');
+          alternatePanel.setAttribute('aria-hidden', 'true');
+          return;
+        }
+        if (boardHover || chatHover) settingsUnlocked = false;
         const mode = switchModeSelect.value;
         const inTrigger = mode === 'board' ? boardHover : mode === 'chat' ? chatHover : boardHover || chatHover;
         document.body.classList.toggle('alternate-mode', !inTrigger);
@@ -851,6 +861,12 @@
       saveNameBtn.addEventListener('click', async () => { await saveDisplayName(); });
       chatForm.addEventListener('submit', event => { event.preventDefault(); sendChatMessage(); });
       saveAlternateBtn.addEventListener('click', saveAlternateSettings);
+      alternateSettingsBtn.addEventListener('click', () => {
+        settingsUnlocked = true;
+        document.body.classList.remove('alternate-mode');
+        alternatePanel.setAttribute('aria-hidden', 'true');
+        showToast('已打开房间和切换设置');
+      });
       alternateUrlInput.addEventListener('keydown', event => { if (event.key === 'Enter') saveAlternateSettings(); });
       switchModeSelect.addEventListener('change', () => {
         try { localStorage.setItem(switchModeKey, switchModeSelect.value); } catch (error) { /* localStorage may be unavailable */ }
