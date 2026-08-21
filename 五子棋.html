@@ -147,7 +147,7 @@
     .alternate-panel iframe { width: 100%; height: 100%; border: 0; background: #fff; }
     .alternate-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: #f8f9fd; font-size: 14px; }
     .alternate-panel.has-frame .alternate-empty { display: none; }
-    .page.alternate-mode .alternate-panel { visibility: visible; opacity: 1; }
+    body.alternate-mode .alternate-panel { visibility: visible; opacity: 1; }
 
     .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none; padding: 11px 16px; border-radius: 999px; color: #fff; background: rgba(29, 36, 51, .92); box-shadow: 0 9px 24px rgba(29, 36, 51, .24); font-size: 13px; transition: opacity .22s ease, transform .22s ease; }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -265,7 +265,7 @@
           <select class="switch-mode" id="switchModeSelect">
             <option value="board">棋盘区域</option>
             <option value="chat">聊天区域</option>
-            <option value="board-chat">棋盘或聊天区域</option>
+            <option value="board-chat">棋盘和聊天区域</option>
             <option value="none">不自动切换</option>
           </select>
         </div>
@@ -650,7 +650,7 @@
       function updatePointerMode() {
         const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
         if (!canHover || switchModeSelect.value === 'none') {
-          document.querySelector('.page').classList.remove('alternate-mode');
+          document.body.classList.remove('alternate-mode');
           alternatePanel.setAttribute('aria-hidden', 'true');
           return;
         }
@@ -658,7 +658,7 @@
         const chatHover = chatPanel.matches(':hover');
         const mode = switchModeSelect.value;
         const inTrigger = mode === 'board' ? boardHover : mode === 'chat' ? chatHover : boardHover || chatHover;
-        document.querySelector('.page').classList.toggle('alternate-mode', !inTrigger);
+        document.body.classList.toggle('alternate-mode', !inTrigger);
         alternatePanel.setAttribute('aria-hidden', String(inTrigger));
       }
 
