@@ -76,6 +76,10 @@
     .turn-stone.white { background: var(--white-stone); }
     .board-wrap { width: min(100%, 650px); margin: 0 auto; aspect-ratio: 1; position: relative; }
     canvas { display: block; width: 100%; height: 100%; border-radius: 0; cursor: crosshair; touch-action: manipulation; }
+    @media (hover: hover) and (pointer: fine) {
+      .board-wrap canvas { opacity: 0; transition: opacity .2s ease; }
+      .board-wrap:hover canvas { opacity: 1; }
+    }
     .board-hint { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; margin-top: 17px; }
     .board-hint span:last-child { text-align: right; }
 
@@ -111,6 +115,7 @@
 
     @media (max-width: 860px) {
       .page { width: min(680px, calc(100% - 28px)); padding-top: 20px; }
+      .board-wrap canvas { opacity: 1 !important; }
       .online-bar { align-items: stretch; flex-direction: column; gap: 10px; }
       .room-controls { flex-wrap: wrap; }
       .room-state { margin-left: 0; text-align: left; }
@@ -350,7 +355,7 @@
         const size = boardCanvas.clientWidth;
         if (!size) return;
         ctx.clearRect(0, 0, size, size);
-        ctx.strokeStyle = 'rgba(65, 61, 54, .68)';
+        ctx.strokeStyle = 'rgba(65, 61, 54, .34)';
         ctx.lineWidth = Math.max(1, size * .00165);
         for (let i = 0; i < SIZE; i++) {
           const p = padding + i * cellSize;
@@ -359,7 +364,7 @@
         }
 
         const stars = [ [3, 3], [11, 3], [7, 7], [3, 11], [11, 11] ];
-        ctx.fillStyle = 'rgba(65, 61, 54, .72)';
+        ctx.fillStyle = 'rgba(65, 61, 54, .4)';
         stars.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(padding + x * cellSize, padding + y * cellSize, size * .0072, 0, Math.PI * 2); ctx.fill(); });
 
         if (hoverCell && !gameOver && board[hoverCell.y][hoverCell.x] === 0) drawHover(hoverCell.x, hoverCell.y);
@@ -380,10 +385,10 @@
       function drawStone(x, y, player) {
         const px = padding + x * cellSize, py = padding + y * cellSize, r = cellSize * .34;
         const gradient = ctx.createRadialGradient(px - r * .32, py - r * .38, r * .12, px, py, r);
-        if (player === 1) { gradient.addColorStop(0, '#59606a'); gradient.addColorStop(.35, '#454b55'); gradient.addColorStop(1, '#303640'); }
+        if (player === 1) { gradient.addColorStop(0, '#858b93'); gradient.addColorStop(.35, '#737a83'); gradient.addColorStop(1, '#626a74'); }
         else { gradient.addColorStop(0, '#e3e3dd'); gradient.addColorStop(.55, '#d4d5cf'); gradient.addColorStop(1, '#bfc1bb'); }
         ctx.save();
-        ctx.globalAlpha = .9;
+        ctx.globalAlpha = .78;
         ctx.shadowColor = 'rgba(57, 35, 20, .12)'; ctx.shadowBlur = r * .18; ctx.shadowOffsetY = r * .08;
         ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
         ctx.shadowColor = 'transparent';
