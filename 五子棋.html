@@ -141,6 +141,8 @@
     .alternate-url { flex: 1; }
     .switch-mode-label { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }
     .switch-mode { width: 100%; margin-top: 6px; }
+    .switch-toggle { width: 100%; height: 34px; margin-top: 8px; border: 1px solid var(--accent); border-radius: 9px; color: #fff; background: var(--accent); cursor: pointer; font-size: 11px; font-weight: 650; }
+    .switch-toggle.active { border-color: #aeb7ce; color: var(--ink); background: #eef1f7; }
     .footer-note { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; line-height: 1.65; }
 
     .alternate-panel { position: fixed; inset: 0; z-index: 30; display: flex; align-items: stretch; justify-content: stretch; visibility: hidden; opacity: 0; pointer-events: none; background: #fff; transition: opacity .12s ease, visibility .12s ease; }
@@ -269,6 +271,7 @@
             <option value="board-chat">棋盘和聊天区域</option>
             <option value="none">不自动切换</option>
           </select>
+          <button class="switch-toggle" id="switchToggleBtn" type="button">启动切换</button>
         </div>
         <div class="footer-note">备用网址和切换设置只保存在当前浏览器；外部网站若禁止 iframe 嵌入，将显示备用提示。</div>
       </aside>
@@ -314,6 +317,7 @@
       const alternateFrame = document.getElementById('alternateFrame');
       const alternateEmpty = document.getElementById('alternateEmpty');
       const alternateSettingsBtn = document.getElementById('alternateSettingsBtn');
+      const switchToggleBtn = document.getElementById('switchToggleBtn');
       const availabilityStatus = document.getElementById('availabilityStatus');
       const createRoomBtn = document.getElementById('createRoomBtn');
       const joinRoomBtn = document.getElementById('joinRoomBtn');
@@ -330,6 +334,7 @@
       let displayName = '匿名棋手';
       let chatMessages = [];
       let settingsUnlocked = false;
+      let switchEnabled = false;
       try { displayName = localStorage.getItem(nicknameKey) || displayName; } catch (error) { /* localStorage may be unavailable */ }
       let board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
       let moves = [];
@@ -653,7 +658,7 @@
 
       function updatePointerMode() {
         const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-        if (!canHover || switchModeSelect.value === 'none') {
+        if (!switchEnabled || !canHover || switchModeSelect.value === 'none') {
           document.body.classList.remove('alternate-mode');
           alternatePanel.setAttribute('aria-hidden', 'true');
           return;
@@ -871,6 +876,14 @@
       switchModeSelect.addEventListener('change', () => {
         try { localStorage.setItem(switchModeKey, switchModeSelect.value); } catch (error) { /* localStorage may be unavailable */ }
         updatePointerMode();
+      });
+      switchToggleBtn.addEventListener('click', () => {
+        switchEnabled = !switchEnabled;
+        settingsUnlocked = false;
+        switchToggleBtn.textContent = switchEnabled ? '停止切换' : '启动切换';
+        switchToggleBtn.classList.toggle('active', switchEnabled);
+        updatePointerMode();
+        showToast(switchEnabled ? '鼠标切换已启动' : '鼠标切换已停止');
       });
       document.addEventListener('mousemove', updatePointerMode);
       document.addEventListener('mouseleave', updatePointerMode);
