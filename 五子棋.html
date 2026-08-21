@@ -58,11 +58,13 @@
     .room-controls { display: flex; align-items: center; gap: 8px; flex: 1; }
     .room-input { width: min(220px, 100%); height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; outline: none; color: var(--ink); background: #fff; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
     .room-input:focus { border-color: #aeb9e9; box-shadow: 0 0 0 3px rgba(95,118,214,.12); }
+    .room-role { height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; color: var(--ink); background: #fff; cursor: pointer; font-size: 12px; }
     .room-button { height: 38px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; color: var(--ink); background: #fff; cursor: pointer; font-size: 12px; font-weight: 650; white-space: nowrap; }
     .room-button.primary { border-color: var(--accent); color: #fff; background: var(--accent); }
     .room-button:disabled { opacity: .45; cursor: not-allowed; }
     .room-state { margin-left: auto; color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
     .room-state strong { color: var(--ink); font-weight: 700; }
+    .room-members { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
 
     .game-shell { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: stretch; }
     .board-panel, .side-panel { background: var(--surface); border: 1px solid rgba(230, 234, 241, .9); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
@@ -119,6 +121,7 @@
       .online-bar { align-items: stretch; flex-direction: column; gap: 10px; }
       .room-controls { flex-wrap: wrap; }
       .room-state { margin-left: 0; text-align: left; }
+      .room-members { margin-left: 0; }
       .game-shell { grid-template-columns: 1fr; }
       .side-panel { padding: 20px; }
       .move-list { max-height: 190px; }
@@ -129,6 +132,7 @@
       .online-bar { padding: 13px; }
       .room-controls { display: grid; grid-template-columns: 1fr 1fr; }
       .room-input { width: 100%; grid-column: 1 / -1; }
+      .room-role { width: 100%; }
       .room-button { width: 100%; }
       .brand-mark { width: 36px; height: 36px; border-radius: 11px; }
       .brand-mark::before { width: 15px; height: 15px; box-shadow: 7px 7px 0 var(--accent); }
@@ -163,10 +167,16 @@
       </div>
       <div class="room-controls">
         <input class="room-input" id="roomInput" maxlength="6" placeholder="输入 6 位房间号" aria-label="房间号" autocomplete="off" />
+        <select class="room-role" id="roleSelect" aria-label="进入身份">
+          <option value="black">选择黑棋</option>
+          <option value="white">选择白棋</option>
+          <option value="spectator">观战</option>
+        </select>
         <button class="room-button primary" id="createRoomBtn" type="button">创建房间</button>
         <button class="room-button" id="joinRoomBtn" type="button">加入房间</button>
       </div>
       <div class="room-state" id="roomState" aria-live="polite">尚未连接</div>
+      <div class="room-members" id="rosterState">黑棋 0/1 · 白棋 0/1 · 观战 0</div>
     </section>
 
     <section class="game-shell" aria-label="五子棋游戏">
@@ -221,7 +231,9 @@
       const lastMoveLabel = document.getElementById('lastMoveLabel');
       const toast = document.getElementById('toast');
       const roomInput = document.getElementById('roomInput');
+      const roleSelect = document.getElementById('roleSelect');
       const roomState = document.getElementById('roomState');
+      const rosterState = document.getElementById('rosterState');
       const availabilityStatus = document.getElementById('availabilityStatus');
       const createRoomBtn = document.getElementById('createRoomBtn');
       const joinRoomBtn = document.getElementById('joinRoomBtn');
@@ -229,7 +241,8 @@
       const SUPABASE_ANON_KEY = 'sb_publishable_RCshm3GY_QlM00fD2CLnEw_tu8Czuze';
       const onlineConfigured = Boolean(window.supabase && !SUPABASE_URL.startsWith('YOUR_') && !SUPABASE_ANON_KEY.startsWith('YOUR_'));
       const clientId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-      const realtime = { client: null, channel: null, roomCode: '', myPlayer: 0, connected: false };
+      const realtime = { client: null, channel: null, roomCode: '', role: 'spectator', myPlayer: 0, connected: false, heartbeat: null };
+      const roleMeta = { black: { player: 1, label: '黑棋' }, white: { player: 2, label: '白棋' }, spectator: { player: 0, label: '观战' } };
       let board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
       let moves = [];
       let currentPlayer = 1;
@@ -254,6 +267,40 @@
       function randomRoomCode() {
         const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+      }
+
+      function renderRoster(members = []) {
+        const counts = { black: 0, white: 0, spectator: 0 };
+        members.forEach(member => { if (counts[member.role] !== undefined) counts[member.role] += 1; });
+        rosterState.textContent = `黑棋 ${counts.black}/1 · 白棋 ${counts.white}/1 · 观战 ${counts.spectator}`;
+      }
+
+      function stopHeartbeat() {
+        if (realtime.heartbeat) clearInterval(realtime.heartbeat);
+        realtime.heartbeat = null;
+      }
+
+      async function refreshRoster() {
+        if (!realtime.client || !realtime.roomCode) return;
+        const { data, error } = await realtime.client.rpc('get_gomoku_room_members', { p_room_code: realtime.roomCode });
+        if (!error && Array.isArray(data)) {
+          renderRoster(data);
+          sendRoomMessage({ type: 'roster', members: data });
+        }
+      }
+
+      async function leaveRoom() {
+        stopHeartbeat();
+        if (!realtime.client || !realtime.roomCode) return;
+        if (realtime.connected) sendRoomMessage({ type: 'roster-request' });
+        await realtime.client.rpc('leave_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId });
+        if (realtime.channel) await realtime.channel.unsubscribe();
+        realtime.channel = null;
+        realtime.roomCode = '';
+        realtime.role = 'spectator';
+        realtime.myPlayer = 0;
+        realtime.connected = false;
+        renderRoster([]);
       }
 
       function getState() {
@@ -284,39 +331,54 @@
         draw();
       }
 
-      async function openRoom(code, player) {
+      async function openRoom(code, role) {
         if (!onlineConfigured) {
           setRoomState('未配置', '需要 Supabase');
           showToast('请先填写 Supabase 配置');
           return;
         }
-        if (realtime.channel) await realtime.channel.unsubscribe();
+        if (!roleMeta[role]) role = 'spectator';
+        await leaveRoom();
+        const joinResult = await realtime.client.rpc('join_gomoku_room', { p_room_code: code, p_session_id: clientId, p_role: role });
+        if (joinResult.error || !joinResult.data?.ok) {
+          const reason = joinResult.data?.reason === 'seat_taken' ? `${roleMeta[role].label}席位已有人` : '请先在 Supabase 执行房间 SQL 脚本';
+          setRoomState('加入失败', reason);
+          showToast(reason);
+          renderRoster(joinResult.data?.members || []);
+          return;
+        }
         realtime.roomCode = code;
-        realtime.myPlayer = player;
+        realtime.role = role;
+        realtime.myPlayer = roleMeta[role].player;
         realtime.connected = false;
         roomInput.value = code;
+        renderRoster(joinResult.data.members || []);
         realtime.channel = realtime.client.channel(`gomoku-room-${code}`, { config: { broadcast: { self: false } } });
         realtime.channel.on('broadcast', { event: 'room-message' }, ({ payload }) => {
           if (!payload || payload.senderId === clientId) return;
-          if (payload.type === 'join-request' && realtime.myPlayer === 1) {
-            setRoomState(code, '对方已加入');
-            sendRoomMessage({ type: 'state', state: getState() });
-          }
+          if (payload.type === 'state-request') sendRoomMessage({ type: 'state', state: getState() });
           if (payload.type === 'state') {
             applyRemoteState(payload.state);
-            setRoomState(code, '已连接');
+            setRoomState(code, `${roleMeta[realtime.role].label} · 已同步`);
           }
+          if (payload.type === 'roster') renderRoster(payload.members || []);
+          if (payload.type === 'roster-request') refreshRoster();
         });
         await realtime.channel.subscribe(async status => {
           if (status === 'SUBSCRIBED') {
             realtime.connected = true;
             availabilityStatus.innerHTML = '<span class="offline-dot" aria-hidden="true"></span>联机已连接';
-            setRoomState(code, player === 1 ? '等待对方' : '正在加入');
-            if (player === 2) sendRoomMessage({ type: 'join-request' });
-            else sendRoomMessage({ type: 'state', state: getState() });
+            setRoomState(code, `${roleMeta[role].label} · 等待同步`);
+            sendRoomMessage({ type: 'roster', members: joinResult.data.members || [] });
+            sendRoomMessage({ type: 'state-request' });
+            realtime.heartbeat = setInterval(async () => {
+              const { data, error } = await realtime.client.rpc('heartbeat_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId });
+              if (!error && Array.isArray(data)) { renderRoster(data); sendRoomMessage({ type: 'roster', members: data }); }
+            }, 15000);
           }
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             realtime.connected = false;
+            stopHeartbeat();
             setRoomState(code, '连接失败');
             showToast('房间连接失败，请重试');
           }
@@ -416,6 +478,7 @@
       function handleMove(event) {
         const cell = getCell(event);
         if (!cell || gameOver || board[cell.y][cell.x]) return;
+        if (realtime.connected && realtime.myPlayer === 0) { showToast('观战中，不能落子'); return; }
         if (realtime.connected && realtime.myPlayer !== currentPlayer) { showToast('还没轮到你'); return; }
         board[cell.y][cell.x] = currentPlayer;
         moves.push({ x: cell.x, y: cell.y, player: currentPlayer });
@@ -466,17 +529,19 @@
       function updateHistory() {
         const count = moves.length;
         moveCount.textContent = `${count} 手`;
-        undoBtn.disabled = count === 0 || gameOver;
+        undoBtn.disabled = count === 0 || gameOver || (realtime.connected && realtime.myPlayer === 0);
         if (!count) { moveList.innerHTML = '<div class="empty-history">还没有落子记录。<br>和身边的人来一局吧。</div>'; return; }
         moveList.innerHTML = moves.slice().reverse().map((move, index) => `<div class="move-row"><span class="move-index">${count - index}</span><span class="move-player"><span class="mini-stone ${players[move.player].stone}"></span>${players[move.player].name}</span><span>${coord(move.x, move.y)}</span></div>`).join('');
       }
 
       function restart() {
+        if (realtime.connected && realtime.myPlayer === 0) { showToast('观战中，不能重新开始'); return; }
         board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0)); moves = []; currentPlayer = 1; gameOver = false; winningLine = []; hoverCell = null;
         updateTurn(); updateHistory(); lastMoveLabel.textContent = '等待第一步落子'; draw(); broadcastState(); showToast('新对局开始');
       }
 
       function undo() {
+        if (realtime.connected && realtime.myPlayer === 0) { showToast('观战中，不能悔棋'); return; }
         if (!moves.length || gameOver) return;
         const move = moves.pop(); board[move.y][move.x] = 0; currentPlayer = move.player; hoverCell = null; updateTurn(); updateHistory();
         lastMoveLabel.textContent = moves.length ? `最后落子：${coord(moves[moves.length - 1].x, moves[moves.length - 1].y)}` : '等待第一步落子'; draw(); broadcastState(); showToast('已悔棋');
@@ -490,12 +555,15 @@
       document.getElementById('restartBtn').addEventListener('click', restart);
       undoBtn.addEventListener('click', undo);
       roomInput.addEventListener('input', () => { roomInput.value = roomInput.value.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase(); });
-      createRoomBtn.addEventListener('click', () => { const code = randomRoomCode(); roomInput.value = code; restart(); openRoom(code, 1); });
-      joinRoomBtn.addEventListener('click', () => {
+      createRoomBtn.addEventListener('click', async () => { const code = randomRoomCode(); roomInput.value = code; restart(); await openRoom(code, roleSelect.value); });
+      joinRoomBtn.addEventListener('click', async () => {
         const code = roomCode();
         if (code.length !== 6) { showToast('请输入 6 位房间号'); return; }
         restart();
-        openRoom(code, 2);
+        await openRoom(code, roleSelect.value);
+      });
+      window.addEventListener('pagehide', () => {
+        if (realtime.client && realtime.roomCode) realtime.client.rpc('leave_gomoku_room', { p_room_code: realtime.roomCode, p_session_id: clientId });
       });
       window.addEventListener('resize', fitCanvas);
       if (onlineConfigured) {
